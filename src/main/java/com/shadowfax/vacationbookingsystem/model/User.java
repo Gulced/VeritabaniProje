@@ -1,6 +1,8 @@
 package com.shadowfax.vacationbookingsystem.model;
 
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.shadowfax.vacationbookingsystem.enums.Role;
+
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -29,6 +31,10 @@ public class User {
     @Column(name = "password", nullable = false)
     private String password;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;   // <<< ROL BURADA
+
     @Column(name = "created_at", updatable = false, insertable = false)
     private LocalDateTime createdAt;
 
@@ -36,16 +42,14 @@ public class User {
     private LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonManagedReference("user-favorites")  // Custom reference name
+    @JsonManagedReference("user-favorites")
     private List<UserFavorite> favorites;
 
-
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonManagedReference("user-listings")  // Custom reference name
+    @JsonManagedReference("user-listings")
     private List<Listing> listings;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
-    @JsonManagedReference("user-reservations")  // Custom reference name
+    @JsonManagedReference("user-reservations")
     private List<Reservation> reservations;
-
 }

@@ -5,6 +5,7 @@ import com.shadowfax.vacationbookingsystem.service.UserFavoriteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,63 +15,90 @@ public class UserFavoriteController {
     @Autowired
     private UserFavoriteService userFavoriteService;
 
+    // ADD FAVORITE (USER ONLY)
+    @PreAuthorize("hasRole('USER')")
     @PostMapping("/addFavorite")
     public ResponseEntity<?> addFavorite(@RequestBody UserFavorite userFavorite) {
-        System.out.println("Received UserFavorite: " + userFavorite);
+
+        if (userFavorite == null ||
+            userFavorite.getUser() == null ||
+            userFavorite.getUser().getId() == null ||
+            userFavorite.getListing() == null ||
+            userFavorite.getListing().getId() == null) {
+
+            return ResponseEntity.badRequest()
+                    .body("User ID and Listing ID cannot be null.");
+        }
+
         try {
-            // Null kontrolü ve ID doğrulaması
-            if (userFavorite == null ||
-                    userFavorite.getUser() == null ||
-                    userFavorite.getUser().getId() == null ||
-                    userFavorite.getListing() == null ||
-                    userFavorite.getListing().getId() == null) {
-                return ResponseEntity.badRequest().body("User ID and Listing ID cannot be null");
+            userFavoriteService.addFavorite(userFavorite);
+            return ResponseEntity.ok("Favorite added successfully.");
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(e.getMessage());
+        }
+        catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An unexpected error occurred.");
+        }
+    }
+
+    // GET SPECIFIC FAVORITE (USER ONLY)
+    @PreAuthorize("hasRole('USER')")
+    @GetMapping("/{userId}/{listingId}")
+    public ResponseEntity<UserFavorite> getFavoriteByUserAndListing(
+            @PathVariable Long userId, @PathVariable Long listingId) {
+
+        try {
+            UserFavorite userFavorite =
+                    userFavoriteService.getFavoriteByUserAndListing(userId, listingId);
+
+            if (userFavorite == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
 
-            // Favori ekleme işlemi
-            userFavoriteService.addFavorite(userFavorite);
+            return ResponseEntity.ok(userFavorite);
 
-            return ResponseEntity.ok("Favorite added successfully");
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
-
-    // Get favorite by userId and listingId
-    @GetMapping("/{userId}/{listingId}")
-    public ResponseEntity<UserFavorite> getFavoriteByUserAndListing(@PathVariable Long userId, @PathVariable Long listingId) {
-        try {
-            UserFavorite userFavorite = userFavoriteService.getFavoriteByUserAndListing(userId, listingId);
-            return userFavorite != null ?
-                    ResponseEntity.ok(userFavorite) :
-                    ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
-        }
-    }
-
-    // Get all favorites for a user
+    // GET ALL FAVORITES FOR A USER (USER + ADMIN)
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @GetMapping("/user/{userId}")
-    public ResponseEntity<Iterable<UserFavorite>> getFavoritesByUser(@PathVariable Long userId) {
+    public ResponseEntity<?> getFavoritesByUser(@PathVariable Long userId) {
+
         try {
             Iterable<UserFavorite> favorites = userFavoriteService.getFavoritesByUser(userId);
             return ResponseEntity.ok(favorites);
+
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Could not fetch favorites.");
         }
     }
 
-    // Delete favorite by userId and listingId
+    // REMOVE FAVORITE (USER ONLY)
+    @PreAuthorize("hasRole('USER')")
     @DeleteMapping("/remove/{userId}/{listingId}")
-    public ResponseEntity<String> removeFavorite(@PathVariable Long userId, @PathVariable Long listingId) {
+    public ResponseEntity<String> removeFavorite(
+            @PathVariable Long userId, @PathVariable Long listingId) {
+
         try {
-            String result = userFavoriteService.removeFavorite(userId, listingId);
-            return ResponseEntity.ok(result);
+            boolean removed = userFavoriteService.removeFavorite(userId, listingId);
+
+            if (!removed) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Favorite not found.");
+            }
+
+            return ResponseEntity.ok("Favorite removed successfully.");
+
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Could not remove favorite.");
         }
     }
 }

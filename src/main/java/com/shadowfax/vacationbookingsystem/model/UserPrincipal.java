@@ -1,27 +1,30 @@
 package com.shadowfax.vacationbookingsystem.model;
 
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.List;
 
 public class UserPrincipal implements UserDetails {
+
     private final User user;
 
     public UserPrincipal(User user) {
         this.user = user;
     }
 
-    // getId metodunu ekliyoruz
+    // Kullanıcı ID'si gerekli olduğunda kullanılabilir
     public Long getId() {
-        return user.getId();  // User modelindeki id'yi döndürüyoruz
+        return user.getId();
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        // Kullanıcı rollerini buradan döndürebiliriz. Örnek olarak "ROLE_USER" döndürüyoruz.
-        return List.of(() -> "ROLE_USER");
+
+        // Örneğin user.getRole() = ROLE_ADMIN dönerse, Spring Security bunu tanıyacak
+        return List.of(new SimpleGrantedAuthority(user.getRole().name()));
     }
 
     @Override

@@ -1,18 +1,15 @@
 package com.shadowfax.vacationbookingsystem.model;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Data;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
 @Table(name = "listings")
 @Data
-@JsonIgnoreProperties(value = {"user"}, ignoreUnknown = true)
 public class Listing {
 
     @Id
@@ -23,10 +20,11 @@ public class Listing {
 
     private String description;
 
-    @Column(name = "created_at", updatable = false, insertable = false)
+    // Created & Updated timestamps
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at", insertable = false)
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
     private String category;
@@ -43,21 +41,22 @@ public class Listing {
     @Embedded
     private Location location;
 
+    // FK column
     @Column(name = "user_id")
     private Long userId;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "user_id", referencedColumnName = "id", insertable = false, updatable = false)
-    @JsonBackReference("user-listings")  // Custom reference name
+    // Relationship
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", insertable = false, updatable = false)
+    @JsonBackReference("user-listings")
     private User user;
 
     private Double price;
 
     @Column(name = "image_url")
-    private String imageUrl;  // Resmin bulunduğu dosyanın yolu
+    private String imageUrl;
 
-    @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL)
-    @JsonManagedReference("listing-reservations")  // Custom reference name
+    @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL, orphanRemoval = false)
+    @JsonManagedReference("listing-reservations")
     private List<Reservation> reservations;
-
 }

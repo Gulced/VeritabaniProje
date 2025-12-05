@@ -25,65 +25,105 @@ public class ReservationService {
     @Autowired
     private ListingRepository listingRepository;
 
-    // Create a new reservation
+
+    // CREATE RESERVATION
     public Reservation createReservation(Reservation reservation) {
-        // Retrieve user and listing entities based on the userId and listingId
-        Optional<User> userOptional = userRepository.findById(reservation.getUserId());
-        Optional<Listing> listingOptional = listingRepository.findById(reservation.getListingId());
 
-        if (!userOptional.isPresent() || !listingOptional.isPresent()) {
-            throw new IllegalArgumentException("User or Listing not found");
-        }
+        User user = userRepository.findById(reservation.getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        // Set the user and listing on the reservation
-        reservation.setUser(userOptional.get());
-        reservation.setListing(listingOptional.get());
+        Listing listing = listingRepository.findById(reservation.getListingId())
+                .orElseThrow(() -> new IllegalArgumentException("Listing not found"));
 
-        // Set timestamps
-        LocalDateTime now = LocalDateTime.now();
-        reservation.setCreatedAt(now);
-        reservation.setUpdatedAt(now);
+        reservation.setUser(user);
+        reservation.setListing(listing);
 
-        // Save the reservation
+        reservation.setCreatedAt(LocalDateTime.now());
+        reservation.setUpdatedAt(LocalDateTime.now());
+
         return reservationRepository.save(reservation);
     }
 
-    // Get all reservations
+
+    // GET ALL
     public List<Reservation> getAllReservations() {
         return reservationRepository.findAll();
     }
 
-    // Get reservation by id
+
+    // GET BY ID
     public Optional<Reservation> getReservationById(Long id) {
         return reservationRepository.findById(id);
     }
 
-    // Update an existing reservation
-    public Reservation updateReservation(Long id, Reservation reservationDetails) {
-        Optional<Reservation> reservationOptional = reservationRepository.findById(id);
-        if (reservationOptional.isPresent()) {
-            Reservation reservation = reservationOptional.get();
-            reservation.setUserId(reservationDetails.getUserId());
-            reservation.setListingId(reservationDetails.getListingId());
-            reservation.setStartDate(reservationDetails.getStartDate());
-            reservation.setEndDate(reservationDetails.getEndDate());
-            reservation.setTotalPrice(reservationDetails.getTotalPrice());
-            reservation.setCreatedAt(reservationDetails.getCreatedAt());
-            return reservationRepository.save(reservation);
+
+    // UPDATE RESERVATION
+    public Reservation updateReservation(Long id, Reservation details) {
+
+        Reservation reservation = reservationRepository.findById(id).orElse(null);
+        if (reservation == null) {
+            return null;
         }
-        return null;
+
+        // Eğer userId değiştiyse user entity getir
+        if (details.getUserId() != null &&
+            !details.getUserId().equals(reservation.getUser().getId())) {
+
+            User user = userRepository.findById(details.getUserId())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+            reservation.setUser(user);
+        }
+
+        // Eğer listingId değiştiyse listing entity getir
+        if (details.getListingId() != null &&
+            !details.getListingId().equals(reservation.getListing().getId())) {
+
+            Listing listing = listingRepository.findById(details.getListingId())
+                    .orElseThrow(() -> new IllegalArgumentException("Listing not found"));
+
+            reservation.setListing(listing);
+        }
+
+        // Rezervasyon tarih güncellemeleri
+        if (details.getStartDate() != null) {
+            reservation.setStartDate(details.getStartDate());
+        }
+
+        if (details.getEndDate() != null) {
+            reservation.setEndDate(details.getEndDate());
+        }
+
+        if (details.getTotalPrice() != null) {
+            reservation.setTotalPrice(details.getTotalPrice());
+        }
+
+        // createdAt asla güncellenmez
+        reservation.setUpdatedAt(LocalDateTime.now());
+
+        return reservationRepository.save(reservation);
     }
 
-    // Delete a reservation
-    public void deleteReservation(Long id) {
-        reservationRepository.deleteById(id);
+
+    // DELETE RESERVATION (daha güvenli)
+    public boolean deleteReservation(Long id) {
+        Optional<Reservation> optional = reservationRepository.findById(id);
+
+        if (optional.isPresent()) {
+            reservationRepository.delete(optional.get());
+            return true;
+        }
+        return false;
     }
 
+
+    // GET BY USER
     public List<Reservation> getReservationsByUserId(Long userId) {
         return reservationRepository.findByUserId(userId);
     }
 
-    // Get reservations for a specific listing
+
+    // GET BY LISTING
     public List<Reservation> getReservationsByListingId(Long listingId) {
         return reservationRepository.findByListingId(listingId);
     }

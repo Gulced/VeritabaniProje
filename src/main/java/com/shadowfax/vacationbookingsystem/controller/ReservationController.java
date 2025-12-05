@@ -1,10 +1,13 @@
 package com.shadowfax.vacationbookingsystem.controller;
 
 import com.shadowfax.vacationbookingsystem.model.Reservation;
+import com.shadowfax.vacationbookingsystem.model.UserPrincipal;
 import com.shadowfax.vacationbookingsystem.service.ReservationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,61 +20,136 @@ public class ReservationController {
     @Autowired
     private ReservationService reservationService;
 
-    // Create a new reservation
+
+    // CREATE (USER ONLY)
+    @PreAuthorize("hasRole('USER')")
     @PostMapping
-    public ResponseEntity<Reservation> createReservation(@RequestBody Reservation reservation) {
-        Reservation newReservation = reservationService.createReservation(reservation);
-        return new ResponseEntity<>(newReservation, HttpStatus.CREATED);
+    public ResponseEntity<?> createReservation(@RequestBody Reservation reservation) {
+
+        try {
+            Reservation newReservation = reservationService.createReservation(reservation);
+            return new ResponseEntity<>(newReservation, HttpStatus.CREATED);
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Could not create reservation.");
+        }
     }
 
-    // Get all reservations
+
+    // GET ALL (ADMIN ONLY)
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
-    public ResponseEntity<List<Reservation>> getAllReservations() {
-        // Veritabanından tüm rezervasyonları çekiyoruz
+    public ResponseEntity<?> getAllReservations() {
         List<Reservation> reservations = reservationService.getAllReservations();
 
-        // Eğer rezervasyonlar boşsa, 204 No Content dönebiliriz
         if (reservations.isEmpty()) {
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         }
 
-        // Veritabanından alınan rezervasyonları döndürüyoruz
         return new ResponseEntity<>(reservations, HttpStatus.OK);
     }
 
-    // Get reservation by id
+
+    // GET ONE (ADMIN OR OWNER)
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
     @GetMapping("/{id}")
-    public ResponseEntity<Reservation> getReservationById(@PathVariable Long id) {
-        Optional<Reservation> reservation = reservationService.getReservationById(id);
-        return reservation.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    public ResponseEntity<?> getReservationById(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        Optional<Reservation> reservationOpt = reservationService.getReservationById(id);
+
+        if (reservationOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Reservation not found.");
+        }
+
+        Reservation reservation = reservationOpt.get();
+
+        // USER only sees own reservation
+        if (!authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            UserPrincipal user = (UserPrincipal) authentication.getPrincipal();
+            if (!reservation.getUserId().equals(user.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Not authorized.");
+            }
+        }
+
+        return ResponseEntity.ok(reservation);
     }
 
-    // Update an existing reservation
+
+    // UPDATE (ADMIN or Owner)
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
     @PutMapping("/{id}")
-    public ResponseEntity<Reservation> updateReservation(@PathVariable Long id, @RequestBody Reservation reservationDetails) {
-        Reservation updatedReservation = reservationService.updateReservation(id, reservationDetails);
-        return updatedReservation != null ? new ResponseEntity<>(updatedReservation, HttpStatus.OK) :
-                ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    public ResponseEntity<?> updateReservation(
+            @PathVariable Long id,
+            @RequestBody Reservation reservationDetails,
+            Authentication authentication) {
+
+        Reservation existingReservation = reservationService.getReservationById(id).orElse(null);
+
+        if (existingReservation == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Reservation not found.");
+        }
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        UserPrincipal user = (UserPrincipal) authentication.getPrincipal();
+
+        if (!isAdmin && !existingReservation.getUserId().equals(user.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Not authorized.");
+        }
+
+        Reservation updated = reservationService.updateReservation(id, reservationDetails);
+
+        return ResponseEntity.ok(updated);
     }
 
-    // Delete a reservation
+
+    // DELETE (ADMIN or Owner)
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteReservation(@PathVariable Long id) {
+    public ResponseEntity<?> deleteReservation(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        Optional<Reservation> existingReservation = reservationService.getReservationById(id);
+
+        if (existingReservation.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Reservation not found.");
+        }
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        UserPrincipal user = (UserPrincipal) authentication.getPrincipal();
+
+        if (!isAdmin && !existingReservation.get().getUserId().equals(user.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Not authorized.");
+        }
+
         reservationService.deleteReservation(id);
+
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
-    // Get reservations by user id
+
+    // GET BY USER
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<Reservation>> getReservationsByUserId(@PathVariable Long userId) {
-        List<Reservation> reservations = reservationService.getReservationsByUserId(userId);
-        return new ResponseEntity<>(reservations, HttpStatus.OK);
+        return ResponseEntity.ok(reservationService.getReservationsByUserId(userId));
     }
 
-    // Get reservations by listing id
+
+    // GET BY LISTING
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
     @GetMapping("/listing/{listingId}")
     public ResponseEntity<List<Reservation>> getReservationsByListingId(@PathVariable Long listingId) {
-        List<Reservation> reservations = reservationService.getReservationsByListingId(listingId);
-        return new ResponseEntity<>(reservations, HttpStatus.OK);
+        return ResponseEntity.ok(reservationService.getReservationsByListingId(listingId));
     }
 }

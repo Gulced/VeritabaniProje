@@ -17,16 +17,20 @@ public class UserFavorite {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    // RELATIONSHIP TO USER
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    @JsonBackReference("user-favorites")  // Custom reference name
+    @JsonBackReference("user-favorites")
     private User user;
 
-    @ManyToOne
+    // RELATIONSHIP TO LISTING
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "listing_id", nullable = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
+    @JsonBackReference("listing-favorites")
     private Listing listing;
 
+    // TIMESTAMP
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

@@ -2,18 +2,19 @@ package com.shadowfax.vacationbookingsystem.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shadowfax.vacationbookingsystem.model.Listing;
+import com.shadowfax.vacationbookingsystem.model.UserPrincipal;
 import com.shadowfax.vacationbookingsystem.service.ListingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,110 +25,142 @@ public class ListingController {
     @Autowired
     private ListingService listingService;
 
-    @Value("${app.upload.dir:${user.home}}")  // File upload directory
-    private String uploadDir;  // This will store the path where files are uploaded
+    @Value("${app.upload.dir:${user.home}}")
+    private String uploadDir;
 
-    // Get all listings
+    // ------------------------------------------------------
+    // GET ALL LISTINGS (Public)
+    // ------------------------------------------------------
     @GetMapping
     public ResponseEntity<List<Listing>> getAllListings() {
-        try {
-            List<Listing> listings = listingService.getAllListings();
-            return ResponseEntity.ok(listings);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-        }
+        return ResponseEntity.ok(listingService.getAllListings());
     }
 
-    // Get listing by ID
+    // ------------------------------------------------------
+    // GET LISTING BY ID (Public)
+    // ------------------------------------------------------
     @GetMapping("/{listingId}")
     public ResponseEntity<Listing> getListingById(@PathVariable Long listingId) {
-        try {
-            Listing listing = listingService.getListingById(listingId);
-            if (listing == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
-            }
-            return ResponseEntity.ok(listing);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-        }
+        Listing listing = listingService.getListingById(listingId);
+        return listing != null ? ResponseEntity.ok(listing)
+                : ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
     }
 
-    // Create a new listing with image upload
+    // ------------------------------------------------------
+    // CREATE LISTING (USER or ADMIN)
+    // ------------------------------------------------------
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @PostMapping
     public ResponseEntity<?> createListing(
             @RequestParam("listing") String listingJson,
-            @RequestParam("imageFile") MultipartFile imageFile) {
+            @RequestParam(value = "imageFile", required = false) MultipartFile imageFile,
+            Authentication authentication) {
+
         try {
-            // Parse the listing object from JSON
-            ObjectMapper objectMapper = new ObjectMapper();
-            Listing listing = objectMapper.readValue(listingJson, Listing.class);
+            ObjectMapper mapper = new ObjectMapper();
+            Listing listing = mapper.readValue(listingJson, Listing.class);
 
-            // If the image file is provided, save it to the local file system
+            // OWNER CHECK → USER sadece kendi listingini oluşturabilir
+            UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+            if (!principal.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+                if (!listing.getUserId().equals(principal.getId())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("You cannot create listing for another user.");
+                }
+            }
+
+            // IMAGE UPLOAD (optional)
             if (imageFile != null && !imageFile.isEmpty()) {
-                // Generate the file path
-                String fileName = listing.getUserId() + "_listing_" + listing.getId() + "_" + UUID.randomUUID() + ".jpg"; // UUID kullanarak benzersiz bir dosya adı oluşturuluyor
-                Path uploadPath = Paths.get(uploadDir, fileName);
 
-                // Create the upload directory if it doesn't exist
-                if (!Files.exists(uploadPath.getParent())) {
-                    Files.createDirectories(uploadPath.getParent());
+                if (!imageFile.getContentType().startsWith("image/")) {
+                    return ResponseEntity.badRequest().body("Only image files are allowed.");
                 }
 
-                // Save the file to the local file system
-                Files.copy(imageFile.getInputStream(), uploadPath);
+                String fileName = listing.getUserId() + "_listing_" + UUID.randomUUID() + ".jpg";
+                Path filePath = Paths.get(uploadDir, fileName);
 
-                // Store the file path in the listing object
-                listing.setImageUrl(uploadPath.toString());
+                Files.createDirectories(filePath.getParent());
+                Files.copy(imageFile.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                listing.setImageUrl(filePath.toString());
             }
 
-            // Save the listing in the database
             Listing savedListing = listingService.createListing(listing);
-            return new ResponseEntity<>(savedListing, HttpStatus.CREATED);
+            return ResponseEntity.status(HttpStatus.CREATED).body(savedListing);
+
         } catch (IOException e) {
-            e.printStackTrace();
-            return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Invalid JSON data format.");
         }
     }
 
-    // Update a listing
+    // ------------------------------------------------------
+    // UPDATE LISTING (Only owner or admin)
+    // ------------------------------------------------------
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @PutMapping("/{listingId}")
-    public ResponseEntity<Listing> updateListing(@PathVariable Long listingId, @RequestBody Listing listingDetails) {
-        try {
-            Listing updatedListing = listingService.updateListing(listingId, listingDetails);
-            if (updatedListing == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
-            }
-            return ResponseEntity.ok(updatedListing);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+    public ResponseEntity<?> updateListing(
+            @PathVariable Long listingId,
+            @RequestBody Listing listingDetails,
+            Authentication authentication) {
+
+        Listing existingListing = listingService.getListingById(listingId);
+
+        if (existingListing == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Listing not found.");
         }
+
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        boolean isAdmin = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin && !existingListing.getUserId().equals(principal.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("You are not the owner of this listing.");
+        }
+
+        Listing updatedListing = listingService.updateListing(listingId, listingDetails);
+        return ResponseEntity.ok(updatedListing);
     }
 
-    // Delete a listing by ID
+    // ------------------------------------------------------
+    // DELETE LISTING (Only owner or admin)
+    // ------------------------------------------------------
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @DeleteMapping("/{listingId}")
-    public ResponseEntity<String> deleteListing(@PathVariable Long listingId) {
-        try {
-            boolean isDeleted = listingService.deleteListing(listingId);
-            if (!isDeleted) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Listing not found.");
-            }
-            return ResponseEntity.ok("Listing deleted successfully.");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while deleting the listing.");
+    public ResponseEntity<?> deleteListing(
+            @PathVariable Long listingId,
+            Authentication authentication) {
+
+        Listing listing = listingService.getListingById(listingId);
+
+        if (listing == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Listing not found.");
         }
+
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        boolean isAdmin = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin && !listing.getUserId().equals(principal.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("You cannot delete another user's listing.");
+        }
+
+        listingService.deleteListing(listingId);
+        return ResponseEntity.ok("Listing deleted successfully.");
     }
 
-    // Get listings by user ID (for reservations)
+    // ------------------------------------------------------
+    // LISTINGS BY USER
+    // ------------------------------------------------------
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Listing>> getListingsByUserId(@PathVariable Long userId) {
-        try {
-            List<Listing> listings = listingService.getListingsByUserId(userId);
-            if (listings.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
-            }
-            return ResponseEntity.ok(listings);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-        }
+    public ResponseEntity<?> getListingsByUserId(@PathVariable Long userId) {
+
+        List<Listing> listings = listingService.getListingsByUserId(userId);
+
+        return listings.isEmpty()
+                ? ResponseEntity.status(HttpStatus.NOT_FOUND).body("No listings found for this user.")
+                : ResponseEntity.ok(listings);
     }
 }

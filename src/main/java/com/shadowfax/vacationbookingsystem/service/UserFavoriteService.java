@@ -13,15 +13,21 @@ public class UserFavoriteService {
     @Autowired
     private UserFavoriteRepository userFavoriteRepository;
 
+    // ADD FAVORITE
     public void addFavorite(UserFavorite userFavorite) {
-        System.out.println("userFavorite-listing: " + userFavorite.getListing());
-        if (userFavorite.getUser() == null || userFavorite.getListing() == null) {
-            throw new IllegalArgumentException("User or Listing cannot be null");
+
+        if (userFavorite.getUser() == null ||
+            userFavorite.getUser().getId() == null ||
+            userFavorite.getListing() == null ||
+            userFavorite.getListing().getId() == null) {
+            throw new IllegalArgumentException("User ID and Listing ID cannot be null.");
         }
 
-        Optional<UserFavorite> existingFavorite = userFavoriteRepository.findByUserAndListing(
-                userFavorite.getUser(), userFavorite.getListing()
-        );
+        Optional<UserFavorite> existingFavorite =
+                userFavoriteRepository.findByUserAndListing(
+                        userFavorite.getUser(),
+                        userFavorite.getListing()
+                );
 
         if (existingFavorite.isPresent()) {
             throw new IllegalArgumentException("This favorite already exists.");
@@ -30,23 +36,30 @@ public class UserFavoriteService {
         userFavoriteRepository.save(userFavorite);
     }
 
-    // Get favorite by userId and listingId
+
+    // GET FAVORITE BY USER + LISTING
     public UserFavorite getFavoriteByUserAndListing(Long userId, Long listingId) {
         return userFavoriteRepository.findByUserIdAndListingId(userId, listingId);
     }
 
-    // Get all favorites for a user
+
+    // GET ALL FAVORITES FOR A USER
     public Iterable<UserFavorite> getFavoritesByUser(Long userId) {
         return userFavoriteRepository.findByUserId(userId);
     }
 
-    // Remove favorite by userId and listingId
-    public String removeFavorite(Long userId, Long listingId) {
-        UserFavorite userFavorite = userFavoriteRepository.findByUserIdAndListingId(userId, listingId);
-        if (userFavorite != null) {
-            userFavoriteRepository.delete(userFavorite);
-            return "Favorite removed";
+
+    // REMOVE FAVORITE (returns boolean for controller)
+    public boolean removeFavorite(Long userId, Long listingId) {
+
+        UserFavorite userFavorite =
+                userFavoriteRepository.findByUserIdAndListingId(userId, listingId);
+
+        if (userFavorite == null) {
+            return false;
         }
-        return "Favorite not found";
+
+        userFavoriteRepository.delete(userFavorite);
+        return true;
     }
 }

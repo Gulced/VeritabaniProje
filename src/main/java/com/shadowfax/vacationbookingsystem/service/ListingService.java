@@ -21,64 +21,98 @@ public class ListingService {
     private UserRepository userRepository;
 
 
-    // Get all listings
+    // GET ALL LISTINGS
     public List<Listing> getAllListings() {
         return listingRepository.findAll();
     }
 
-    // Get listing by ID
+    // GET BY ID
     public Listing getListingById(Long listingId) {
         return listingRepository.findById(listingId).orElse(null);
     }
 
+
+    // CREATE LISTING
     public Listing createListing(Listing listing) {
-        if (listing.getUser() != null && listing.getUser().getId() != null) {
-            Optional<User> userOptional = userRepository.findById(listing.getUser().getId());
-            if (userOptional.isPresent()) {
-                listing.setUser(userOptional.get());
-            } else {
-                throw new IllegalArgumentException("User not found");
-            }
+
+        if (listing.getUser() == null || listing.getUser().getId() == null) {
+            throw new IllegalArgumentException("User ID is required for creating a listing.");
         }
+
+        User user = userRepository.findById(listing.getUser().getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        listing.setUser(user);
+
+        // Set timestamps
+        LocalDateTime now = LocalDateTime.now();
+        listing.setCreatedAt(now);
+        listing.setUpdatedAt(now);
+
         return listingRepository.save(listing);
     }
 
-    // Update a listing
+
+    // UPDATE LISTING
     public Listing updateListing(Long listingId, Listing listingDetails) {
+
         Listing existingListing = listingRepository.findById(listingId).orElse(null);
-        if (existingListing != null) {
-            existingListing.setTitle(listingDetails.getTitle());
-            existingListing.setDescription(listingDetails.getDescription());
-            existingListing.setCategory(listingDetails.getCategory());
-            existingListing.setRoomCount(listingDetails.getRoomCount());
-            existingListing.setBathroomCount(listingDetails.getBathroomCount());
-            existingListing.setGuestCount(listingDetails.getGuestCount());
-            existingListing.setLocation(listingDetails.getLocation());
-            existingListing.setPrice(listingDetails.getPrice());
-            existingListing.setImageUrl(listingDetails.getImageUrl());
-            existingListing.setUpdatedAt(LocalDateTime.now());
-            return listingRepository.save(existingListing);
+
+        if (existingListing == null) {
+            return null;
         }
-        return null;
+
+        // Null-check protected updates
+        if (listingDetails.getTitle() != null)
+            existingListing.setTitle(listingDetails.getTitle());
+
+        if (listingDetails.getDescription() != null)
+            existingListing.setDescription(listingDetails.getDescription());
+
+        if (listingDetails.getCategory() != null)
+            existingListing.setCategory(listingDetails.getCategory());
+
+        if (listingDetails.getRoomCount() != null)
+            existingListing.setRoomCount(listingDetails.getRoomCount());
+
+        if (listingDetails.getBathroomCount() != null)
+            existingListing.setBathroomCount(listingDetails.getBathroomCount());
+
+        if (listingDetails.getGuestCount() != null)
+            existingListing.setGuestCount(listingDetails.getGuestCount());
+
+        if (listingDetails.getLocation() != null)
+            existingListing.setLocation(listingDetails.getLocation());
+
+        if (listingDetails.getPrice() != null)
+            existingListing.setPrice(listingDetails.getPrice());
+
+        if (listingDetails.getImageUrl() != null)
+            existingListing.setImageUrl(listingDetails.getImageUrl());
+
+
+        // Timestamp güncelle
+        existingListing.setUpdatedAt(LocalDateTime.now());
+
+        return listingRepository.save(existingListing);
     }
 
-    // Delete a listing
+
+    // DELETE LISTING
     public boolean deleteListing(Long listingId) {
-        Listing listing = listingRepository.findById(listingId).orElse(null);
-        if (listing != null) {
+        return listingRepository.findById(listingId).map(listing -> {
             listingRepository.delete(listing);
             return true;
-        }
-        return false;
+        }).orElse(false);
     }
 
+
+    // GET LISTINGS BY USER
     public List<Listing> getListingsByUserId(Long userId) {
         try {
             return listingRepository.findByUserId(userId);
         } catch (Exception e) {
-            // Hata günlüğü
-            throw new RuntimeException("Error retrieving listings for user: " + userId, e);
+            throw new RuntimeException("Error retrieving listings for user " + userId, e);
         }
     }
-
 }
