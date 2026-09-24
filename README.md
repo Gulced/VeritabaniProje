@@ -1,46 +1,54 @@
+# Database Project (Airbnb-Style Backend)
 
-# Gazi BnB Backend
+A duplicate copy of the Airbnb-style Spring Boot backend stored under a generic course-project name.
 
-Bu proje, Gazi BnB tatil rezervasyon uygulamasının backend kısmını oluşturmaktadır. Kullanıcıların tatil yerlerini incelemesi, rezervasyon yapması ve favorilerine eklemesi gibi işlemlerin yönetimini sağlayan bir sistemdir.
+## Overview
 
-## Kullanılan Teknolojiler
-- **Backend:** Java (Spring Boot), PostgreSQL
-- **Veritabanı:** PostgreSQL
+A duplicate copy of the Airbnb-style Spring Boot backend stored under a generic course-project name. The description and capabilities in this document are limited to behavior that can be verified in the repository source.
 
-## Özellikler
-- Kullanıcıların rezervasyon işlemleri için backend desteği
-- Veritabanı yönetimi ve kimlik doğrulama işlemleri
-- API son noktalarının düzenlenmesi ve optimize edilmesi
+## Key Features
 
-## Başlangıç
+- Spring Boot project structure
 
-Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları izleyebilirsiniz.
+## Tech Stack
 
-### Gereksinimler
-- Java 21 veya daha yeni bir sürüm
-- PostgreSQL veritabanı
+- Java
+- Spring Boot
+- Maven
 
-### Projeyi Çalıştırmak
+## Architecture
 
-1. Proje dizininde terminali açın ve Spring Boot uygulamasını başlatın:
+Conventional Spring Boot structure.
 
-   ```bash
-   ./mvnw spring-boot:run
-   ```
+## Project Structure
 
-2. Uygulama, varsayılan olarak `http://localhost:8080` adresinde çalışacaktır.
+- `src/main/` — application source
+- `src/test/` — tests
 
-3. PostgreSQL veritabanı bağlantı ayarlarını `application.properties` dosyasına yapın:
+## Getting Started
 
-   ```properties
-   spring.datasource.url=jdbc:postgresql://localhost:5432/veritabani_adi
-   spring.datasource.username=postgres
-   spring.datasource.password=parolaniz
-   ```
+Run the commands appropriate to the project root:
 
-## Frontend Detayları
+```bash
+./mvnw spring-boot:run
+```
 
-Bu backend, Gazi BnB tatil rezervasyon uygulamasının frontend kısmı ile entegre çalışmaktadır. Frontend detayları ve kurulum talimatlarına aşağıdaki bağlantıdan ulaşabilirsiniz:
+## Testing
 
-> **Frontend için kaynak kodları ve daha fazla bilgiye ulaşmak için:**
-> [Gazi BnB Frontend GitHub Repository](https://github.com/atillaertas1/gazi-bnb)
+```bash
+./mvnw test
+```
+
+## Technical Highlights
+
+- Database coursework
+
+## Possible Improvements
+
+- Add or expand automated tests around core workflows.
+- Document deployment and environment-specific configuration.
+- Add CI checks for build, linting, and tests where they are not already present.
+
+## Verification Notes
+
+The tracked project files match airbnbclone_backend; do not list both as separate CV projects.
